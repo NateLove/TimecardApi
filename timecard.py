@@ -10,7 +10,7 @@ db = client.test
 
 app = Flask(__name__)
 api = Api(app, version='1.0', title='CS Consulting Timecard API',
-    description='API to manage time cards for the CS consulting team',doc='/swagger/'
+    description='API to manage time cards for the CS consulting team',doc='/swagger-secret/'
 )
 
 ns = api.namespace('time', description='time operations')
@@ -103,7 +103,9 @@ class TimeDao(object):
             return {'completed_timecards': t.timecards}
         except IndexError:
             api.abort(404, 'Name not found')
-    def shame(self):
+    def shame(self, id, name):
+        if id != 'rocket.cat':
+            return {'out': "Only bots are allowed to shame. Shame on you @{}".format(name)}
         ulist = []
         now = datetime.now()
         for doc in self.db.find():
@@ -112,7 +114,7 @@ class TimeDao(object):
                 ulist.append('@' + doc.get('username'))
             else:
                 last_complete = datetime.strptime(tcs[-1]['date'], '%x')
-                if last_complete < now-timedelta(days=4):
+                if last_complete < now-timedelta(hours=82):
                     ulist.append('@' + doc.get('username'))
 
         if ulist == []:
@@ -177,10 +179,10 @@ class TodoCompleted(Resource):
     def get(self,id):
         '''List all tasks'''
         return DAO.get_complete(id)
-@ns.route('/shame')
+@ns.route('/shame/<string:id>/<string:name>')
 class Test(Resource):
-  def get(self):
-    return DAO.shame()
+  def get(self, id, name):
+    return DAO.shame(id, name)
 @ns.route('/clear/<string:password>')
 class Clear(Resource):
     def get(self, password):
@@ -194,4 +196,6 @@ class Help(Resource):
     def get(self):
         return { 'out': 'This is the timecard rocketchat tool\n\nUsage:\n    /tc help - show this message\n    /tc register - add your username to the service\n    /tc completed - mark time card as complete\n    /tc stop - remove your username from the service'}
 if __name__ == '__main__':
+    import logging
+    #logging.basicConfig(filename='output.log',level=logging.DEBUG)
     app.run(debug=True,host='0.0.0.0')
