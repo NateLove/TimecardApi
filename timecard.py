@@ -69,7 +69,7 @@ class TimeDao(object):
             t = Timecard(self.db, list(self.db.find({'name': name}))[0])
             return t.get_json()
         except IndexError:
-            api.abort(404, 'Name not found')
+            return {'out':'User not found. You may need to register. For more info try /tc help'}
 
     def update(self, name, data):
         try:
@@ -80,7 +80,7 @@ class TimeDao(object):
             t_new.write_to_db()
             return t_new.get_json()
         except IndexError:
-            api.abort(404, 'Name not found')
+            return {'out':'User not found. You may need to register. For more info try /tc help'}
 
     def delete(self, name):
         self.db.delete_many({'name':name})
@@ -95,14 +95,14 @@ class TimeDao(object):
             t.write_to_db()
             return {'out': "User: @{} marked timecard as complete".format(t.username)}
         except IndexError:
-            api.abort(404, {'out':'Name not found'})
+            return {'out':'User not found. You may need to register. For more info try /tc help'}
 
     def get_complete(self, name):
         try:
             t = Timecard(self.db, list(self.db.find({'name': name}))[0])
             return {'completed_timecards': t.timecards}
         except IndexError:
-            api.abort(404, 'Name not found')
+            return {'out':'User not found. You may need to register. For more info try /tc help'}
     def shame(self, id, name):
         if id != 'rocket.cat':
             return {'out': "Only bots are allowed to shame. Shame on you @{}".format(name)}
@@ -194,7 +194,7 @@ class Clear(Resource):
 @ns.route('/help')
 class Help(Resource):
     def get(self):
-        return { 'out': 'This is the timecard rocketchat tool\n\nUsage:\n    /tc help - show this message\n    /tc register - add your username to the service\n    /tc completed - mark time card as complete\n    /tc stop - remove your username from the service'}
+        return { 'out': 'This is the timecard rocketchat tool\n\nUsage:\n    /tc help - show this message\n    /tc register - add your username to the service\n    /tc complete - mark time card as complete\n    /tc stop - remove your username from the service'}
 if __name__ == '__main__':
     import logging
     #logging.basicConfig(filename='output.log',level=logging.DEBUG)
