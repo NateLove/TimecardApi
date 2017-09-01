@@ -87,7 +87,7 @@ class TimeDao(object):
         return {'out':'User removed from list'}
 
     def complete(self, name, complete=True):
-        if datetime.today().weekday not in [5,6,7,1]:
+        if datetime.today().weekday() not in [5,6,4,0]:
             return {'out': 'Timecards can only be completed Friday-Monday'}
         try:
             t = Timecard(self.db, list(self.db.find({'name': name}))[0])
