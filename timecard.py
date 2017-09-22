@@ -37,14 +37,33 @@ class Timecard(object):
     def write_to_db(self):
         self.db.update_one({'name': self.name, 'username': self.username}, {'$set': self.get_json()}, upsert=True)
 
-    def add_completion(self, complete=True, date=time.strftime("%x")):
+    def add_completion(self, complete=True, date=None):
         updated = False
+        if date is None:
+            date = Timecard.get_card_date()
         for card in self.timecards:
             if card['date'] == date:
                 card['complete'] = complete
                 updated = True
         if not updated:
             self.timecards.append({'date': date, 'complete': complete})
+    @staticmethod
+    def get_card_date():
+        if datetime.now().weekday() == 4:
+            return datetime.now().strftime("%x")
+        if datetime.now().weekday() in [1,2,3]:
+            days_ahead = 4 - datetime.now().weekday()
+            next_friday = datetime.now() + timedelta(days_ahead)
+            return next_friday.strftime("%x")
+        if datetime.now().weekday() in [5,6,0]:
+            days_behind = datetime.now().weekday() - 4
+            if days_behind == -4:
+                days_behind = 3
+            prev_friday = datetime.now() - timedelta(days_behind)
+            return prev_friday.strftime("%x")
+
+
+
 
 class TimeDao(object):
     def __init__(self, db):
@@ -71,14 +90,10 @@ class TimeDao(object):
         except IndexError:
             return {'out':'User not found. You may need to register. For more info try /tc help'}
 
-    def update(self, name, data):
+    def update(self, id, name):
         try:
-            t_old = Timecard(self.db, list(self.db.find({'name': name}))[0])
-            t_new = Timecard(self.db, data)
-            t_new.timecards = t_old.timecards
-            self.db.delete_one(t_old.get_json())
-            t_new.write_to_db()
-            return t_new.get_json()
+            self.db.update_one({'name': id}, {"$set": {'username':name}})
+            return {'out': "User @{} updated".format(name)}
         except IndexError:
             return {'out':'User not found. You may need to register. For more info try /tc help'}
 
@@ -104,7 +119,7 @@ class TimeDao(object):
         except IndexError:
             return {'out':'User not found. You may need to register. For more info try /tc help'}
     def shame(self, id, name):
-        if id != 'rocket.cat':
+        if id != 'rocket.cat' :
             return {'out': "Only bots are allowed to shame. Shame on you @{}".format(name)}
         ulist = []
         now = datetime.now()
@@ -114,7 +129,7 @@ class TimeDao(object):
                 ulist.append('@' + doc.get('username'))
             else:
                 last_complete = datetime.strptime(tcs[-1]['date'], '%x')
-                if last_complete < now-timedelta(hours=82):
+                if last_complete.strftime("%x") != Timecard.get_card_date():
                     ulist.append('@' + doc.get('username'))
 
         if ulist == []:
@@ -141,13 +156,13 @@ class PersonList(Resource):
         return DAO.create(api.payload), 201
 
 
-@ns.route('/<string:id>')
+@ns.route('/<string:id>/<string:name>')
 @ns.response(404, 'Person not found')
 class Person(Resource):
     '''Show a single person and lets you delete them'''
     @ns.doc('get_person')
     @ns.marshal_with(timecard)
-    def get(self, id):
+    def get(self, id, name):
         '''Fetch a given resource'''
         return DAO.get(id)
 
@@ -158,11 +173,9 @@ class Person(Resource):
         return DAO.delete(id)
 
 
-    @ns.expect(timecard)
-    @ns.marshal_with(timecard)
-    def put(self, id):
+    def put(self, id, name):
         '''Update a person given its identifier'''
-        return DAO.update(id, api.payload)
+        return DAO.update(id, name)
 
 @ns.route('/complete/<string:id>')
 @ns.response(404, 'Person not found')
@@ -194,8 +207,8 @@ class Clear(Resource):
 @ns.route('/help')
 class Help(Resource):
     def get(self):
-        return { 'out': 'This is the timecard rocketchat tool\n\nUsage:\n    /tc help - show this message\n    /tc register - add your username to the service\n    /tc complete - mark time card as complete\n    /tc stop - remove your username from the service'}
+        return { 'out': 'This is the timecard rocketchat tool\n\nUsage:\n    /tc help - show this message\n    /tc register - add your username to the service\n    /tc complete - mark time card as complete\n    /tc update - update name info incase you change your displayed username\n    /tc stop - remove your username from the service'}
 if __name__ == '__main__':
     import logging
-    #logging.basicConfig(filename='output.log',level=logging.DEBUG)
+    logging.basicConfig(filename='/var/log/timecard.log',level=logging.DEBUG)
     app.run(debug=True,host='0.0.0.0')
