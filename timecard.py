@@ -168,7 +168,7 @@ class Person(Resource):
 
     @ns.doc('delete_person')
     @ns.response(204, 'person deleted')
-    def delete(self, id):
+    def delete(self, id, name):
         '''Delete a person given its identifier'''
         return DAO.delete(id)
 
