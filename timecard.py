@@ -1,7 +1,9 @@
-from flask import Flask
+from flask import Flask, abort
+from flask import request
 from flask_restplus import Api, Resource, fields
 from pymongo import MongoClient
 import time
+import json
 from datetime import datetime, timedelta
 
 
@@ -14,6 +16,7 @@ api = Api(app, version='1.0', title='CS Consulting Timecard API',
 )
 
 ns = api.namespace('time', description='time operations')
+karma_ns = api.namespace('karma', description='karma operations')
 
 timecard = api.model('time', {
     'name': fields.String(required=True, description='Real name of the person'),
@@ -102,8 +105,6 @@ class TimeDao(object):
         return {'out':'User removed from list'}
 
     def complete(self, name, complete=True):
-        if datetime.today().weekday() not in [5,6,4,0]:
-            return {'out': 'Timecards can only be completed Friday-Monday'}
         try:
             t = Timecard(self.db, list(self.db.find({'name': name}))[0])
             t.add_completion(complete=complete)
@@ -208,6 +209,78 @@ class Clear(Resource):
 class Help(Resource):
     def get(self):
         return { 'out': 'This is the timecard rocketchat tool\n\nUsage:\n    /tc help - show this message\n    /tc register - add your username to the service\n    /tc complete - mark time card as complete\n    /tc update - update name info incase you change your displayed username\n    /tc stop - remove your username from the service'}
+
+class KarmaDAO():
+    def __init__(self, db):
+        self.db = db
+    def parse(self, text):
+        if text is None:
+            return {'out': 'No text found'}
+        command = text.replace('karmabot ', '')
+        if ' ++' in command:
+            command = command.replace(' ++', '++')
+        if ' --' in command:
+            command = command.replace(' --', '--')
+        for subcommand in command.split():
+          if subcommand.startswith('@'):
+              subcommand = subcommand.strip('@')
+          if '++' in subcommand:
+            if '++' == subcommand or not subcommand.endswith('++'):
+                abort(400)
+            subcommand = subcommand.replace('++', '')
+            self.db.update({'name':subcommand}, {'$inc':{'count':1}}, upsert=True)
+            items = list(self.db.find({'name':subcommand}))
+            return {'out': subcommand + "'s total is " + str(items[0].get('count'))}
+          elif '--' in subcommand:
+            if '--' == subcommand or not subcommand.endswith('--'):
+                abort(400)
+            subcommand = subcommand.replace('--', '')
+            self.db.update({'name':subcommand}, {'$inc':{'count':-1}}, upsert=True)
+            items = list(self.db.find({'name':subcommand}))
+            return {'out': subcommand + "'s total is " + str(items[0].get('count'))}
+        if 'karmabot help' in text:
+            return {'out': 'no  :grumpycat2: '}
+        else:
+            abort(400)
+    def list(self, text):
+        if text is None:
+            return {'out': 'No text found'}
+        if text == 'karmabot list':
+            count_list = list(self.db.find())
+            sorted_list = sorted(count_list, key=lambda k: k['count'], reverse=True)
+            num_print = 10
+            if len(sorted_list) < 10:
+                num_print = len(sorted_list)
+            ret_value = "Top 10:\n\n"
+            for i in range(0, num_print):
+                ret_value = ret_value + str(i+1) + ". " + sorted_list[i]['name'] + ' : ' + str(sorted_list[i]['count']) + "\n"
+            return {'out': ret_value}
+
+        command = text.replace('karmabot list ', '').rstrip()
+        if command.startswith('@'):
+            command = command.strip('@')
+        items = list(self.db.find({'name':command}))
+        if len(items) == 0:
+            return {'out': command + "'s total is 0"}
+        return {'out': command + "'s total is " + str(items[0].get('count'))}
+
+karma = KarmaDAO(db.karma_count)
+
+@karma_ns.route('/<string:id>')
+@api.param('text', _in='body')
+class Karma(Resource):
+    def post(self,id):
+        req_data = json.loads(request.data)
+        if req_data.get('user_name') == 'rocket.cat':
+            abort(400)
+        return karma.parse(req_data.get('text', None))
+@karma_ns.route('/list/<string:id>')
+class KarmaList(Resource):
+    def post(self,id):
+        req_data = json.loads(request.data)
+        if req_data.get('user_name') == 'rocket.cat':
+            return { 'out' : 'stop trying to break me' }
+        return karma.list(req_data.get('text', None))
 if __name__ == '__main__':
     import logging
     logging.basicConfig(filename='/var/log/timecard.log',level=logging.DEBUG)
