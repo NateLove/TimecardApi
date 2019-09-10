@@ -2,6 +2,7 @@ const config = {
     color: '#225159'
 };
 
+
 class Script {
     /**
      * @params {object} request
