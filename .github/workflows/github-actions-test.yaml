@@ -18,3 +18,7 @@ jobs:
       - run: echo "🍏 This job's status is ${{ job.status }}."
       - run: echo " This is the entire event ${{ toJSON(github.event) }}"
       - run: echo " This is the run URL - ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - name: Run Python Test
+        env:
+            BUILD_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        run: python action.py
